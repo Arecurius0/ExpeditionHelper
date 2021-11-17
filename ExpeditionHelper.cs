@@ -46,10 +46,11 @@ namespace ExpeditionHelper
 
         public override void Render()
         {
-            var GwennenWindowItems = GameController.IngameState.IngameUi.HaggleWindow.GetChildFromIndices(8, 1, 0, 0);
+            
             if (!GameController.IngameState.IngameUi.HaggleWindow.IsVisible) return;
             if ((bool)!GameController.IngameState.IngameUi.HaggleWindow.GetChildFromIndices(6,2,0)?.IsVisible) return;
-            for(int i = 1; i < GwennenWindowItems.ChildCount; ++i)
+            var GwennenWindowItems = GameController.IngameState.IngameUi.HaggleWindow.GetChildFromIndices(8, 1, 0, 0);
+            for (int i = 1; i < GwennenWindowItems.ChildCount; ++i)
             {
                 if (BasesList.Contains(GwennenWindowItems.GetChildAtIndex(i).Entity.GetComponent<Base>().Name))
                 {
