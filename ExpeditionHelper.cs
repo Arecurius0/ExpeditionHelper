@@ -13,29 +13,38 @@ namespace ExpeditionHelper
     public class ExpeditionHelper : BaseSettingsPlugin<ExpeditionHelperSettings>
     {
         private const string BASENAME_FILE = "Bases.txt";
-        private List<String> BasesList;
+        private const string REMNANTMODS_FILE = "RemnantMods.txt";
+        private List<String> RemnantModifiers;
+        private HashSet<String> BaseListHS;
 
         public override bool Initialise()
         {
             Name = "ExpeditionHelper";
-            ReadBaseFile();
+            ReadSettingsFiles();
+            Settings.RefreshFiles.OnPressed += () => { ReadSettingsFiles(); };
             return base.Initialise();
         }
 
-        private void ReadBaseFile()
+        private void ReadSettingsFiles()
         {
             var path = $"{DirectoryFullName}\\{BASENAME_FILE}";
             if (File.Exists(path))
             {
-                BasesList = File.ReadAllLines(path).Where(line => !string.IsNullOrWhiteSpace(line) && !line.StartsWith("#")).ToList();
+                BaseListHS = File.ReadAllLines(path).Where(line => !string.IsNullOrWhiteSpace(line) && !line.StartsWith("#")).ToHashSet<String>();
             }
-            else
-                CreateBaseFile();
+            else CreateSettingsFile(BASENAME_FILE);
+
+            path = $"{DirectoryFullName}\\{REMNANTMODS_FILE}";
+            if (File.Exists(path))
+            {
+                RemnantModifiers = File.ReadAllLines(path).Where(line => !string.IsNullOrWhiteSpace(line) && !line.StartsWith("#")).ToList();
+            }
+            else CreateSettingsFile(REMNANTMODS_FILE);
         }
 
-        private void CreateBaseFile()
+        private void CreateSettingsFile(string file)
         {
-            var path = $"{DirectoryFullName}\\{BASENAME_FILE}";
+            var path = $"{DirectoryFullName}\\{file}";
             if (File.Exists(path)) return;
             using (var streamWriter = new StreamWriter(path, true))
             {
@@ -46,21 +55,51 @@ namespace ExpeditionHelper
 
         public override void Render()
         {
-            
-            if (!GameController.IngameState.IngameUi.HaggleWindow.IsVisible) return;
-            if ((bool)!GameController.IngameState.IngameUi.HaggleWindow.GetChildFromIndices(6,2,0)?.IsVisible) return;
+            if (Settings.GwennenBases &&
+                GameController.IngameState.IngameUi.HaggleWindow.IsVisible &&
+                (bool)!GameController.IngameState.IngameUi.HaggleWindow.GetChildFromIndices(6, 2, 0)?.IsVisible)
+            {
+                HighlightGwennenBases();
+            }
+            if (Settings.HighlightRemnants &&
+                !(GameController.Area.CurrentArea.IsHideout || GameController.Area.CurrentArea.IsTown))
+            {
+                HighlightRemnants();
+            }
+
+        }
+        public void HighlightGwennenBases()
+        {
+            if (BaseListHS.Count == 0) return;
             var GwennenWindowItems = GameController.IngameState.IngameUi.HaggleWindow.GetChildFromIndices(8, 1, 0, 0);
             for (int i = 1; i < GwennenWindowItems.ChildCount; ++i)
             {
-                if (BasesList.Contains(GwennenWindowItems.GetChildAtIndex(i).Entity.GetComponent<Base>().Name))
+                if (BaseListHS.Contains(GwennenWindowItems.GetChildAtIndex(i).Entity.GetComponent<Base>().Name))
                 {
                     Graphics.DrawFrame(GwennenWindowItems.GetChildAtIndex(i).GetClientRect(), Color.Red, Settings.LineThickness);
                 }
             }
         }
-
+        public void HighlightRemnants()
+        {
+            if (RemnantModifiers.Count == 0) return;
+            foreach (var label in GameController.IngameState.IngameUi.ItemsOnGroundLabelsVisible)
+            {
+                if (!(label.ItemOnGround.Metadata == "Metadata/MiscellaneousObjects/Expedition/ExpeditionRelic")) continue;
+                if (RemnantModifiers.Any(x => label.Label.GetChildFromIndices(0, 1).Text.Contains(x)))
+                {
+                    Graphics.DrawFrame(label.Label.GetClientRect(), Color.Red, Settings.LineThickness);
+                }
+            }
+        }
         public override Job Tick()
         {
+            if (GameController.IngameState.IngameUi.ExpeditionDetonatorElement.RemainingExplosives == 0) return base.Tick();
+            var detonator = GameController.EntityListWrapper.ValidEntitiesByType[ExileCore.Shared.Enums.EntityType.IngameIcon].FirstOrDefault(x => x.Path == "Metadata/MiscellaneousObjects/Expedition/ExpeditionDetonator");
+            if (detonator != null && detonator.HasComponent<Targetable>() && detonator.GetComponent<Targetable>().isTargeted)
+            {
+                //block left mouseclick
+            }
             return base.Tick();
         }
     }
