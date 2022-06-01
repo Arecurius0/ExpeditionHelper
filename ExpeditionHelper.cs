@@ -13,8 +13,10 @@ namespace ExpeditionHelper
     public class ExpeditionHelper : BaseSettingsPlugin<ExpeditionHelperSettings>
     {
         private const string BASENAME_FILE = "Bases.txt";
-        private const string REMNANTMODS_FILE = "RemnantMods.txt";
-        private List<String> RemnantModifiers;
+        private const string REMNANTMODS_FILE_GOOD = "RemnantModsGood.txt";
+        private const string REMNANTMODS_FILE_BAD = "RemnantModsBad.txt";
+        private List<String> RemnantModifiersGood;
+        private List<String> RemnantModifiersBad;
         private HashSet<String> BaseListHS;
 
         public override bool Initialise()
@@ -34,12 +36,19 @@ namespace ExpeditionHelper
             }
             else CreateSettingsFile(BASENAME_FILE);
 
-            path = $"{DirectoryFullName}\\{REMNANTMODS_FILE}";
+            path = $"{DirectoryFullName}\\{REMNANTMODS_FILE_GOOD}";
             if (File.Exists(path))
             {
-                RemnantModifiers = File.ReadAllLines(path).Where(line => !string.IsNullOrWhiteSpace(line) && !line.StartsWith("#")).ToList();
+                RemnantModifiersGood = File.ReadAllLines(path).Where(line => !string.IsNullOrWhiteSpace(line) && !line.StartsWith("#")).ToList().ConvertAll(x => x.ToLower());
             }
-            else CreateSettingsFile(REMNANTMODS_FILE);
+            else CreateSettingsFile(REMNANTMODS_FILE_GOOD);
+
+            path = $"{DirectoryFullName}\\{REMNANTMODS_FILE_BAD}";
+            if (File.Exists(path))
+            {
+                RemnantModifiersBad = File.ReadAllLines(path).Where(line => !string.IsNullOrWhiteSpace(line) && !line.StartsWith("#")).ToList().ConvertAll(x => x.ToLower());
+            }
+            else CreateSettingsFile(REMNANTMODS_FILE_BAD);
         }
 
         private void CreateSettingsFile(string file)
@@ -57,16 +66,10 @@ namespace ExpeditionHelper
         {
             if (Settings.GwennenBases &&
                 GameController.IngameState.IngameUi.HaggleWindow.IsVisible &&
-                (bool)!GameController.IngameState.IngameUi.HaggleWindow.GetChildFromIndices(6, 2, 0)?.IsVisible)
+                (bool)GameController.IngameState.IngameUi.HaggleWindow.GetChildFromIndices(6, 2, 0)?.IsVisible)
             {
                 HighlightGwennenBases();
             }
-            if (Settings.HighlightRemnants &&
-                !(GameController.Area.CurrentArea.IsHideout || GameController.Area.CurrentArea.IsTown))
-            {
-                HighlightRemnants();
-            }
-
         }
         public void HighlightGwennenBases()
         {
@@ -80,27 +83,21 @@ namespace ExpeditionHelper
                 }
             }
         }
-        public void HighlightRemnants()
-        {
-            if (RemnantModifiers.Count == 0) return;
-            foreach (var label in GameController.IngameState.IngameUi.ItemsOnGroundLabelsVisible)
-            {
-                if (!(label.ItemOnGround.Metadata == "Metadata/MiscellaneousObjects/Expedition/ExpeditionRelic")) continue;
-                if (RemnantModifiers.Any(x => label.Label.GetChildFromIndices(0, 1).Text.Contains(x)))
-                {
-                    Graphics.DrawFrame(label.Label.GetClientRect(), Color.Red, Settings.LineThickness);
-                }
-            }
-        }
         public override Job Tick()
         {
-            if (GameController.IngameState.IngameUi.ExpeditionDetonatorElement.RemainingExplosives == 0) return base.Tick();
-            var detonator = GameController.EntityListWrapper.ValidEntitiesByType[ExileCore.Shared.Enums.EntityType.IngameIcon].FirstOrDefault(x => x.Path == "Metadata/MiscellaneousObjects/Expedition/ExpeditionDetonator");
-            if (detonator != null && detonator.HasComponent<Targetable>() && detonator.GetComponent<Targetable>().isTargeted)
+            if (GameController.IngameState.IngameUi.ExpeditionDetonatorElement.RemainingExplosives == 0) return null;
+
+            var detonator = GameController.EntityListWrapper.ValidEntitiesByType[ExileCore.Shared.Enums.EntityType.IngameIcon].
+                FirstOrDefault(x => x.Path == "Metadata/MiscellaneousObjects/Expedition/ExpeditionDetonator");
+
+            if (detonator != null && 
+                detonator.HasComponent<Targetable>() && 
+                detonator.GetComponent<Targetable>().isTargeted && 
+                GameController.IngameState.IngameUi.ExpeditionDetonatorElement.RemainingExplosives != 0)
             {
                 //block left mouseclick
             }
-            return base.Tick();
+            return null;
         }
     }
 }
